@@ -6,112 +6,97 @@ using namespace std;
 using namespace gliese;
 using namespace MazeGame;
 
-
-
 struct nodo{
-    const GameState* Act;
+    const GameState* Accion;
     int nroNodo;
-    int hn;
-    int gn;
+    float hn;
+    float gn;
     int nivel;
 };
-struct vec{
-    Action::Type acc;
+
+struct vSolucion{
+    Action::Type vAccion;
     int padre;
 };
 
-//agarro el que tiene mayor g
-
- void ReturnSol( list<Action::Type> & solution,vector <vec> sol,int r){
-    int n=r;
+ void returnSol( list<Action::Type> & solution,vector <vSolucion> sol,int ind){
+    int n=ind;
     while(n>=0){
-        solution.push_front(sol.at(n).acc);
+        solution.push_front(sol.at(n).vAccion);
         n=sol.at(n).padre;
     }
  }
 
+int estadosG=1;
+
 bool bfs (GameSimulator & sim, unsigned int & depth, list<Action::Type> & solution)
 {
-    int r=0;
-    vector <vec> sol;
-    bool found;
-    found= false;
+    int ind=0;
+    vector <vSolucion> sol;
+    bool found=false;
     queue<nodo> fila;
     const GameState* CurrentState= sim.getCurrentState();
-    nodo aux;
-    aux.Act= CurrentState;
-    aux.nroNodo=sol.size()-1;
-    fila.push(aux);
-    nodo aux1;
+    nodo inicial;
+    inicial.Accion= CurrentState;
+    sim.addVisited(inicial.Accion);
+    inicial.nroNodo= sol.size()-1;
+    fila.push(inicial);
+    nodo parcial;
     sim.undoUpdate();
     while(!fila.empty() && !found){
-                aux1= fila.front();
-                fila.pop();
-                sim.setState(aux1.Act);
-
-                if (sim.isGameOver()) {
-                    if (sim.getGameOverResult() == GameOverRule::WIN) {
-                        cout << "--- Se gano el juego\n\n";
-                        ReturnSol(solution,sol,r);
-                        found =true;
-                        return found;
-                    } else {
-                            cout << "--- Se perdio el juego\n\n";
-                            found= false;
-                        }
-                        }else {
-                        if (!sim.isInPath()) {
-                            cout << "--- Se agrega el estado nuevo\n\n";
-                            //sim.addVisited(aux1.Act);
-                            cout << "---- Detalle de la configuracion del estado actual:\n";
-                            cout << aux1.Act->toString() << "\n";
-                            ComponentPtr<LogicObject> explorer(sim.getGame()->getObject(EXPLORER));
-                            list<Action::Type> explorerActions;
-                            explorer->getActions(explorerActions);
-                            list<Action::Type>::iterator action = explorerActions.begin();
-                            while ( action != explorerActions.end()) {
-                                        if (explorer->canPerform(*action)) {
-                                            cout << "--- Se ejecutara la accion:  " << action->toString() << "\n\n";
-                                            explorer->performAction(*action);
-                                            vec sw2;
-                                            sw2.acc= *action;
-                                            sw2.padre=aux1.nroNodo;
-                                            sol.push_back(sw2);
-                                            sim.update();
-                                            if (sim.getGameOverResult() == GameOverRule::WIN){
-                                                r=sol.size()-1;
-                                            }
-                                            const GameState * currentStat = sim.getCurrentState();
-                                            nodo aux2;
-                                            aux2.Act= currentStat;
-                                            aux2.nroNodo=sol.size()-1;
-                                            fila.push(aux2);
-                                            sim.undoUpdate();
-                                            cout << "--- Se actualizo el estado\n\n";
-                                        }
-
-                                        action++;
-                            }
-                        } else {
-                            cout << "--- El estado ya fue visitado\n\n";
-                            found= false;
-                        }
+        parcial= fila.front();
+        fila.pop();
+        sim.setState(parcial.Accion);
+        if (sim.isGameOver()) {
+            if (sim.getGameOverResult() == GameOverRule::WIN) {
+                cout << "--- Se gano el juego\n\n";
+                cout << "Estados generados  "  << ind << endl;
+                returnSol(solution,sol,ind);
+                found =true;
+            } else {
+                cout << "--- Se perdio el juego\n\n";
+                found= false;
+                }
+        }else {
+            cout << "--- Se agrega el estado nuevo\n\n";
+            cout << "---- Detalle de la configuracion del estado actual:\n";
+            cout << parcial.Accion->toString() << "\n";
+            ComponentPtr<LogicObject> explorer(sim.getGame()->getObject(EXPLORER));
+            list<Action::Type> explorerActions;
+            explorer->getActions(explorerActions);
+            list<Action::Type>::iterator action = explorerActions.begin();
+            while ( action != explorerActions.end()) {
+                if (explorer->canPerform(*action)) {
+                    cout << "--- Se ejecutara la accion:  " << action->toString() << "\n\n";
+                    explorer->performAction(*action);
+                    vSolucion vParcial;
+                    vParcial.vAccion= *action;
+                    vParcial.padre=parcial.nroNodo;
+                    sol.push_back(vParcial);
+                    sim.update();
+                    cout << "--- Se actualizo el estado\n\n";
+                    if (sim.getGameOverResult() == GameOverRule::WIN){
+                        ind=sol.size()-1;
                     }
-}
-
+                    const GameState * currentStat = sim.getCurrentState();
+                    if ( !sim.getVisited(currentStat)){
+                        sim.addVisited(currentStat);
+                        nodo sig;
+                        sig.Accion= currentStat;
+                        sig.nroNodo=sol.size()-1;
+                        fila.push(sig);
+                    }
+                    else{
+                        cout << "--- El estado ya fue visitado\n\n";
+                        found= false;}
+                    sim.undoUpdate();
+                }
+                action++;
+            }
+        }
+    }
     return found;
-
-
-
-
-
-
 }
-
-
-
-
-
 
 
 
@@ -120,6 +105,7 @@ bool dfs (GameSimulator & sim, unsigned int & depth, list<Action::Type> & soluti
     if (sim.isGameOver()) {
         if (sim.getGameOverResult() == GameOverRule::WIN) {
             cout << "--- Se gano el juego\n\n";
+            cout << "Cantidad de estados genrados  "  << estadosG << endl;
             return true;
         } else {
             cout << "--- Se perdio el juego\n\n";
@@ -168,13 +154,10 @@ bool dfs (GameSimulator & sim, unsigned int & depth, list<Action::Type> & soluti
             return false;
         }
     }
-
 }
 
-
-int dist(int x1,int y1,int x2,int y2){
+int distE(int x1,int y1,int x2,int y2){
     return sqrt(pow(x1-x2, 2.0)+ pow(y1-y2,2.0));
-
 }
 
 class Heuristic
@@ -184,29 +167,27 @@ public:
     virtual float eval(Game * game) const = 0;
 };
 
-
-
-
 class Heuristic1 : public Heuristic
 {
 public:
     float eval(Game * game) const {
-        list<LogicObject*> enemies;
-        list<LogicObject*> enemies1;
-        game->getObjects(MUMMY,enemies);
-        game->getObjects(SCORPION,enemies1);
-        enemies.insert(enemies.end(),enemies1.begin(),enemies1.end());
+        list<LogicObject*> enemiesM;
+        list<LogicObject*> enemiesS;
+        game->getObjects(MUMMY,enemiesM);
+        game->getObjects(SCORPION,enemiesS);
+        enemiesM.insert(enemiesM.end(),enemiesS.begin(),enemiesS.end());
         ComponentPtr<LogicObject> explorer(game->getObject(EXPLORER));
         ComponentPtr<LogicObject> goal(game->getObject(GOAL));
+        int c,d,e,f,g,h,i,j;
+        float dSalida;
         int a=explorer->getShape()->getX();
         int b=explorer->getShape()->getY();
-        list<LogicObject*>::iterator it=enemies.begin();
-        bool es_momia1= false;bool es_momia2= false;bool es_escorpion= false;
-        int c,d,e,f,g,h,i,j,k;
         i=goal->getShape()->getX();
         j=goal->getShape()->getY();
-        k=dist(a,b,i,j);
-        while (it!= enemies.end( )){
+        dSalida=distE(a,b,i,j);
+        list<LogicObject*>::iterator it=enemiesM.begin();
+        bool es_momia1= false;bool es_momia2= false;bool es_escorpion= false;
+        while (it!= enemiesM.end( )){
             if (((*it)->getType()== MUMMY) && (!es_momia1)) {
                 es_momia1=true;
                 LogicObject* momia1;
@@ -230,26 +211,30 @@ public:
                 }
             it++;
         }
-        int m1;int m2;
-        if ( k == 0 ){
+        float distancia;
+        if ( a==i&&b==j ){
             return 0;
          }else{
             if (es_momia1 && es_momia2){
-                m1=dist(e,f,c,d);
-                return m1-k;
+                distancia=distE(e,f,c,d)*6;
+                return (distancia+dSalida);
             }else{
                 if (es_momia1 && es_escorpion){
-                    int s1;
-                    s1=dist(c,d,g,h);
-                    return s1-k;
+                    distancia=distE(c,d,g,h)*6;
+                    return (distancia+dSalida);
                 }else{
-                    m1=dist(a,b,c,d);
-                    return m1-k;
+                    distancia=distE(a,b,c,d);
+                    return dSalida/(distancia+1);
+                }
+
                 }
             }
         }
-    }
 };
+
+int distM(int x1,int y1,int x2, int y2){
+    return abs(x2-x1)+abs(y2-y1);
+}
 
 class Heuristic2 : public Heuristic
 {
@@ -261,62 +246,88 @@ public:
     int b=explorer->getShape()->getY();
     int e=goal->getShape()->getX();
     int i=goal->getShape()->getY();
-    int j=dist(a,b,e,i);
-
-    //Traigo la lista de enemigos y me fijo si estan en los bordes
-
-    list<LogicObject*> enemies;
-    list<LogicObject*> enemies1;
-    game->getObjects(MUMMY,enemies);
-    game->getObjects(SCORPION,enemies1);
-    enemies.insert(enemies.end(),enemies1.begin(),enemies1.end());
-    list<LogicObject*>::iterator it=enemies.begin();
-     bool es_momia1= false;bool es_momia2= false;bool es_escorpion= false;
-     int c1,d1,e1,f1,g1,h1,i1,j1,k1;
-        while (it!= enemies.end( )){
-            if (((*it)->getType()== MUMMY) && (!es_momia1)) {
-                es_momia1=true;
-                LogicObject* momia1;
-                momia1=(*it);
-                c1=momia1->getShape()->getX();
-                d1=momia1->getShape()->getY();
-                }else {
-                    if (((*it)->getType()== MUMMY) && (es_momia1)){
-                        es_momia2= true;
-                        LogicObject* momia2;
-                        momia2=(*it);
-                        e1=momia2->getShape()->getX();
-                        f1=momia2->getShape()->getY();
-                    }else{
-                        es_escorpion= true;
-                        LogicObject* escorpion;
-                        escorpion=(*it);
-                        g1=escorpion->getShape()->getX();
-                        h1=escorpion->getShape()->getY();
-                    }
-                }
-            it++;
+    int j=distE(a,b,e,i);
+    list<LogicObject*> enemiesM;
+    list<LogicObject*> enemiesS;
+    game->getObjects(MUMMY,enemiesM);
+    game->getObjects(SCORPION,enemiesS);
+    enemiesM.insert(enemiesM.end(),enemiesS.begin(),enemiesS.end());
+    list<LogicObject*>::iterator it=enemiesM.begin();
+    bool es_momia1= false;bool es_momia2= false;bool es_escorpion= false;
+    int m1x,m1y,m2x,m2y,sx,sy;
+    while (it!= enemiesM.end( )){
+        if (((*it)->getType()== MUMMY) && (!es_momia1)) {
+            es_momia1=true;
+            LogicObject* momia1;
+            momia1=(*it);
+            m1x=momia1->getShape()->getX();
+            m1y=momia1->getShape()->getY();
+            }else {
+                if (((*it)->getType()== MUMMY) && (es_momia1)){
+                    es_momia2= true;
+                    LogicObject* momia2;
+                    momia2=(*it);
+                    m2x=momia2->getShape()->getX();
+                    m2y=momia2->getShape()->getY();
+                }else{
+                    es_escorpion= true;
+                    LogicObject* escorpion;
+                    escorpion=(*it);
+                    sx=escorpion->getShape()->getX();
+                    sy=escorpion->getShape()->getY();
+                   }
+            }
+        it++;
+    }
+    int costoEnemigo=0;
+    int d1,d2;
+    if (es_momia1 && es_momia2){
+        d1=distM(m1x,m1y,a,b);
+        d2=distM(m2x,m2y,a,b);
+        if ( m1x == 0 || m1x == 5 || m1y == 0 || m1y == 5){
+            costoEnemigo=d1*3;
         }
-
-
+        if( m2x == 0 || m2x == 5 || m2y == 0 || m2y == 5){
+            costoEnemigo+=d2*3;
+        }else{
+            costoEnemigo=abs(d1-d2)*3;
+            }
+    }else{
+        if (es_momia1 && es_escorpion){
+            d1=distM(m1x,m1y,a,b);
+            d2=distM(sx,sy,a,b);
+            if ( m1x == 0 || m1x == 5 || m1y == 0 || m1y == 5)
+                costoEnemigo+=d1*3;
+            if ( sx == 0 || sx == 5 || sy == 0 || sy == 5){
+                costoEnemigo+=d2*3;
+            }else{
+                costoEnemigo+= abs(d1-d2)*3;
+            }
+        }else{
+            d1=distM(m1x,m1y,a,b);
+            if ( m1x == 0 || m1x == 5 || m1y == 0 || m1y == 5 ){
+                costoEnemigo=d1*6;
+            }else{
+                //hay una sola maomia y ademas no esta en el borde
+                costoEnemigo+=d1;
+            }
+        }
+    }
     ///Cantidad de movimentos que puede hacer la momia
-    if ( j==0){
+    if ( a==e && b==i ){
         return 0;
     }else{
-        if ( a==0 || a==5){
-            return j;
+        //costo enemigo, cuanto mas grande es, mas peligroso es ir por ahi
+        if ( a==0 || a==5 || b==0 || b==5){
+            return j+costoEnemigo;
         }else{
-            if (b==0 || b==5){
-                return j;
-            }else{
-                return j*10;
-            }
+            //cout << " cantidad de enemigos  " << enemiesM.size() <<  endl ;
+            return j*enemiesM.size()*3;
         }
     }
     }
 
 };
-
 
 class Heuristic3 : public Heuristic
 {
@@ -329,11 +340,9 @@ public:
     list<LogicObject*>  objects;
     game->getGameSpace().getObjects(area,objects);
     list<LogicObject*>::iterator it=objects.begin();
-    int c=0;
+    float c=0;
+    int murosposibles=3;
     while ( it !=objects.end( )){
-        //if ( (*it)->getType() !=MUMMY){
-
-
         if ( (*it)->getType() == UPWALL){
             c++;
         }else{
@@ -349,41 +358,21 @@ public:
             }
             }
         }
-
         it++;
     }
-    if ( c==2 ){
-        c=c*2;
+    if ( c == 0 ){
+        return ((c+1)/murosposibles);
     }
-
-
-
-
-
-
-
-
-
-
-    /* ComponentPtr<LogicObject> explorer(game->getObject(EXPLORER));
-    list<Action::Type> explorerActions;
-    explorer->getActions(explorerActions);
-    list<Action::Type>::iterator it = explorerActions.begin();
-    int e=1;
-     while ( it != explorerActions.end()) {
-        if (!explorer->canPerform(*it)) {
-            e++;
-            }
-        it++:
+    if ( c == 1 ){
+        return c*(murosposibles-1);
 
     }
-    ComponentPtr<LogicObject> mummy(game->getObject(MUMMY));
-    list<Action::Type> mummyActions;
-    mummy->getActions(mummyActions);
-    list<Action::Type>::iterator maction = mummyActions.begin();*/
-
-
-    return c;
+    if ( c == 2 ){
+        return c*murosposibles;
+    }
+    if ( c == 3 ){
+        return c*(murosposibles+1);
+    }
     }
 };
 
@@ -391,7 +380,7 @@ bool operator< (const nodo& a, const nodo &b){
    if ( a.gn+a.hn != b.gn+b.hn){
         return ( a.gn+a.hn ) > (b.gn+b.hn);
    }else{
-        if ( a.gn > b.gn ){
+        if ( a.hn > b.hn ){
             return ( a.gn+a.hn ) > (b.gn+b.hn);
         }else{
             return ( a.gn+a.hn ) < (b.gn+b.hn);
@@ -399,12 +388,11 @@ bool operator< (const nodo& a, const nodo &b){
    }
 }
 
-
 bool operator> (const nodo& a, const nodo & b){
     if ( a.gn+a.hn != b.gn+b.hn){
         return ( a.gn+a.hn ) < (b.gn+b.hn);
     }else{
-        if ( a.gn < b.gn ){
+        if ( a.hn < b.hn ){
             return ( a.gn+a.hn ) < (b.gn+b.hn);
         }else{
             return ( a.gn+a.hn ) > (b.gn+b.hn);
@@ -415,85 +403,81 @@ bool operator> (const nodo& a, const nodo & b){
 
 bool astar(GameSimulator & sim, const Heuristic & h, list<Action::Type> & solution)
 {
-    int r=0;
-    vector <vec> sol;
+    int ind=0;
+    vector <vSolucion> sol;
     bool found;
     found= false;
     priority_queue<nodo, vector<nodo>,less<vector<nodo>::value_type> > fila;
     const GameState* CurrentState= sim.getCurrentState();
-    nodo aux;
-    aux.Act= CurrentState;
-    aux.nroNodo=sol.size()-1;
-    aux.nivel=1;
-    fila.push(aux);
-    nodo aux1;
+    nodo inicial;
+    inicial.Accion= CurrentState;
+    inicial.nroNodo=sol.size()-1;
+    inicial.nivel=1;
+    fila.push(inicial);
+    nodo parcial;
     sim.undoUpdate();
     int g=0;
     while(!found){
-                aux1= fila.top();
-                fila.pop();
-                sim.setState(aux1.Act);
-
-                if (sim.isGameOver()) {
-                    if (sim.getGameOverResult() == GameOverRule::WIN) {
-                      //  cout << "--- Se gano el juego\n\n";
-                        ReturnSol(solution,sol,r);
-                        found =true;
-                        return found;
-                    } else {
-                           // cout << "--- Se perdio el juego\n\n";
-                            found= false;
-                        }
-                        }else {
-                        if (!sim.isInPath()) {
-                            //cout << "--- Se agrega el estado nuevo\n\n";
-                            //sim.addVisited(aux1.Act);
-                            //cout << "---- Detalle de la configuracion del estado actual:\n";
-                            cout << aux1.Act->toString() << "\n";
-                            ComponentPtr<LogicObject> explorer(sim.getGame()->getObject(EXPLORER));
-                            list<Action::Type> explorerActions;
-                            explorer->getActions(explorerActions);
-                            list<Action::Type>::iterator action = explorerActions.begin();
-
-                            while ( action != explorerActions.end()) {
-                                if (explorer->canPerform(*action)) {
-                                   // cout << "--- Se ejecutara la accion:  " << action->toString() << "\n\n";
-                                    explorer->performAction(*action);
-                                    vec sw2;
-                                    sw2.acc= *action;
-                                    sw2.padre=aux1.nroNodo;
-                                    sol.push_back(sw2);
-                                    sim.update();
-                                    if (sim.getGameOverResult() == GameOverRule::WIN){
-                                        r=sol.size()-1;
-                                    }
-                                    const GameState * currentStat = sim.getCurrentState();
-                                    nodo aux2;
-                                    aux2.Act= currentStat;
-                                    aux2.nroNodo=sol.size()-1;
-                                    //Calcular el costo heuristico ------Puede ser 0 para probar
-                                    Game* A;
-                                    A=sim.getGame();
-                                    aux2.nivel=aux1.nivel++;
-                                    aux2.hn=h.eval(A);
-                                    aux2.gn=aux2.nivel;
-                                    fila.push(aux2);
-                                    //Meter orderado segun costo heuristico
-                                    sim.undoUpdate();
-                                   // cout << "--- Se actualizo el estado\n\n";
-                                }
-                                action++;
-                            }
-                        } else {
-                           // cout << "--- El estado ya fue visitado\n\n";
-                            found= false;
-                        }
+        parcial= fila.top();
+        fila.pop();
+        sim.setState(parcial.Accion);
+        if (sim.isGameOver()) {
+            if (sim.getGameOverResult() == GameOverRule::WIN) {
+                cout << "--- Se gano el juego\n\n";
+                returnSol(solution,sol,ind);
+                found =true;
+            } else {
+                found= false;
+                }
+        }else {
+            cout << "--- Se agrega el estado nuevo\n\n";
+            cout << "---- Detalle de la configuracion del estado actual:\n";
+            cout << parcial.Accion->toString() << "\n";
+            ComponentPtr<LogicObject> explorer(sim.getGame()->getObject(EXPLORER));
+            list<Action::Type> explorerActions;
+            explorer->getActions(explorerActions);
+            list<Action::Type>::iterator action = explorerActions.begin();
+            while ( action != explorerActions.end()) {
+                estadosG++;
+                if (explorer->canPerform(*action)) {
+                    cout << "--- Se ejecutara la accion:  " << action->toString() << "\n\n";
+                    explorer->performAction(*action);
+                    vSolucion vParcial;
+                    vParcial.vAccion= *action;
+                    vParcial.padre=parcial.nroNodo;
+                    sol.push_back(vParcial);
+                    sim.update();
+                    cout << "--- Se actualizo el estado\n\n";
+                    if (sim.getGameOverResult() == GameOverRule::WIN){
+                        ind=sol.size()-1;
                     }
-
-}
-
+                    const GameState * currentStat = sim.getCurrentState();
+                    if ( !sim.getVisited(currentStat)){
+                        sim.addVisited(currentStat);
+                        nodo sig;
+                        sig.Accion= currentStat;
+                        sig.nroNodo=sol.size()-1;
+                        Game* A;
+                        A=sim.getGame();
+                        sig.nivel=parcial.nivel+1;
+                        sig.hn=h.eval(A);
+                        sig.gn=sig.nivel;
+                        cout << "funcion F(n)   "<< sig.hn+sig.gn << endl;
+                        fila.push(sig);
+                    }
+                    else{
+                        cout << "--- El estado ya fue visitado\n\n";
+                        found= false;}
+                    sim.undoUpdate();
+                }
+                action++;
+            }
+        }
+    }
+    cout << "Estados Generados   "<< estadosG<< endl;
     return found;
 }
+
 
 bool astar1(GameSimulator & sim, unsigned int & depth, list<Action::Type> & solution)
 {
@@ -509,4 +493,3 @@ bool astar3(GameSimulator & sim, unsigned int & depth, list<Action::Type> & solu
 {
     return astar(sim, Heuristic3(), solution);
 }
-
